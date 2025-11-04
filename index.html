@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>24-Hour Solar Clock</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&display=swap" rel="stylesheet">
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 18px;
+            box-sizing: border-box;
+            background-image: url(assets/dark-night.png);
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-attachment: fixed;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        #clock {
+            width: 60vmin;
+            height: 60vmin;
+            border-radius: 50%;
+            position: relative;
+            border: 2px solid #EFEDE3;
+        }
+
+        #clock::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: inherit;
+            filter: blur(15px);
+            z-index: 0;
+            clip-path: circle(50%);
+            overflow: hidden;
+        }
+
+        .hour-label {
+            position: absolute;
+            font-size: 2vmin;
+            transform: translate(-50%, -50%);
+            color: #EFEDE3;
+        }
+
+        .tick {
+            position: absolute;
+            background: #EFEDE3;
+        }
+
+        .hand {
+            position: absolute;
+            left: 50%;
+            bottom: 50%;
+            transform-origin: 48% 96%;
+        }
+
+        .hour {
+            width: 6px;
+            height: 25%;
+            margin-left: -3px;
+            border-radius: 4px;
+            background: #EFEDE3;
+        }
+
+        .minute {
+            width: 3px;
+            height: 40%;
+            margin-left: -1.5px;
+            border-radius: 4px;
+            background: #EFEDE3;
+        }
+
+        .second {
+            width: 1px;
+            height: 45%;
+            margin-left: -1px;
+            background: #EFEDE3;
+        }
+
+        #sun-info {
+            margin-top: 60px;
+            text-align: center;
+            color: #C9C7BF;
+        }
+
+        #location-info {
+            position: absolute;
+            top: 18px;
+            left: 36px;
+            color: #C9C7BF;
+            white-space: pre;
+        }
+
+        #greeting {
+            position: absolute;
+            top: 18px;
+            right: 36px;
+            text-align: right;
+            white-space: pre;
+            color: #C9C7BF;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="clock"></div>
+    <div id="location-info"></div>
+    <div id="greeting"></div>
+    <div id="sun-info"></div>
+    <script>
+        const dawnColors = [
+            '#2B3549',
+            '#30354B',
+            '#36374D',
+            '#413E5A',
+            '#62516C',
+            '#906975',
+            '#BE816C',
+            '#DEAB6B',
+            '#E3D495',
+            '#E0DFB2',
+            '#B8E0EE'
+        ];
+        const dayColors = [
+            '#B8E0EE',
+            '#9BD0E3',
+            '#609FBE'
+        ];
+        const duskColors = [
+            '#609FBE',
+            '#5E96B7',
+            '#778CB2',
+            '#C17D9A',
+            '#D47B81',
+            '#B36471',
+            '#94587B',
+            '#754681',
+            '#523C81',
+            '#303473',
+            '#14365E'
+        ];
+        const nightColors = [
+            '#14365E',
+            '#172F40',
+            '#2B3549'
+        ];
+        const transitionMinutes = 90;
+        let currentTZ = 'Europe/Paris';  
+        let timer;
+        let lastGreetingHour = -1;
+
+        const morningMessages = [
+            "Good Morning\nRise and shine",
+            "Hope you slept well\nGood morning",
+            "Good morning!\nHave a beautiful day",
+            "New day ahead\nEmbrace the light",
+            "Morning vibes\nStart with a smile",
+            "Awake and alive\nSeize the moment",
+            "Fresh start today\nMake it count",
+            "Sunrise greetings\nFeel the energy",
+            "Good morning love\nDream big today",
+            "Bright beginnings\nChase your goals",
+            "Morning peace\nFind your rhythm",
+            "Hello new day\nFull of promise",
+            "Wake up strong\nConquer the world",
+            "Good morning joy\nSpread positivity",
+            "Early light calls\nAnswer with grace"
+        ];
+        const afternoonMessages = [
+            "Good Afternoon\nEnjoy your day",
+            "Hope your afternoon is going well\nStay productive",
+            "Good afternoon!\nWishing you a great day ahead",
+            "Midday cheer\nKeep the momentum",
+            "Afternoon glow\nFind your balance",
+            "Hello midday\nRecharge and thrive",
+            "Positive vibes\nMake progress now",
+            "Afternoon bliss\nEmbrace the warmth",
+            "Stay inspired\nAfternoon ahead",
+            "Good afternoon friend\nKeep shining bright",
+            "Midday motivation\nPush through strong",
+            "Afternoon peace\nReflect and grow",
+            "Hello sunshine\nAfternoon delight",
+            "Energized midday\nAchieve your best",
+            "Good afternoon calm\nStay focused true"
+        ];
+        const eveningMessages = [
+            "Good Evening\nTime to relax",
+            "Wishing you a peaceful evening\nSweet dreams ahead",
+            "Good evening!\nHave a wonderful night",
+            "Evening unwind\nLet go of stress",
+            "Twilight calm\nReflect on the day",
+            "Good evening glow\nEmbrace the quiet",
+            "Sundown serenity\nRest your mind",
+            "Evening peace\nCherish the moments",
+            "Hello twilight\nWind down gently",
+            "Good evening joy\nShare the warmth",
+            "Nightfall arrives\nRecharge your soul",
+            "Evening blessings\nFind your comfort",
+            "Dusk greetings\nEase into night",
+            "Good evening rest\nTomorrow awaits fresh",
+            "Twilight whispers\nSleep well soon"
+        ];
+        const nightMessages = [
+            "Good Night\nSweet Dreams",
+            "Sleep tight\nSee you in the morning",
+            "Good night!\nRest well",
+            "Nighttime peace\nDrift to dreams",
+            "Sweet slumber calls\nGood night dear",
+            "Stars above watch\nSleep soundly now",
+            "Good night wishes\nRecharge for dawn",
+            "Moonlit rest\nDream big tonight",
+            "Night embraces you\nPeaceful sleep ahead",
+            "Good night love\nTomorrow brings light",
+            "Quiet hours begin\nRest your heart",
+            "Good night calm\nLet worries fade",
+            "Starry night greets\nSleep with ease",
+            "Good night friend\nAwake renewed soon",
+            "Darkness soothes now\nSweet dreams await"
+        ];
+
+        function timeToAngle(hours) {
+            return (((hours - 12) / 24) * 360 + 360) % 360;
+        }
+
+        async function getLatLng(location) {
+            let url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json&limit=1`;
+            let res = await fetch(url);
+            let data = await res.json();
+            if (data.length === 0) throw new Error('Location not found');
+            let place = data[0];
+            if (place.place_rank <= 4) {  
+                url = `https://nominatim.openstreetmap.org/search?q=capital%20of%20${encodeURIComponent(location)}&format=json&limit=1`;
+                res = await fetch(url);
+                data = await res.json();
+                if (data.length === 0) throw new Error('Capital not found');
+                place = data[0];
+            }
+            return { lat: place.lat, lng: place.lon };
+        }
+
+        async function getTimezone(lat, lng) {
+            const url = `https://timeapi.io/api/TimeZone/coordinate?latitude=${lat}&longitude=${lng}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            if (!data.timeZone) throw new Error('Timezone not available');
+            return data.timeZone;
+        }
+
+        function parseTime(timeStr) {
+            const [time, ampm] = timeStr.split(' ');
+            let [h, m, s] = time.split(':').map(Number);
+            if (ampm === 'PM' && h !== 12) h += 12;
+            if (ampm === 'AM' && h === 12) h = 0;
+            return h + m / 60 + s / 3600;
+        }
+
+        async function getSunTimes(lat, lng) {
+            const date = new Date().toISOString().split('T')[0];
+            const tz = await getTimezone(lat, lng);
+            const url = `https://api.sunrisesunset.io/json?lat=${lat}&lng=${lng}&timezone=${encodeURIComponent(tz)}&date=${date}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            if (data.status !== 'OK') throw new Error('Sun times not available');
+            return {
+                sunriseStr: data.results.sunrise,
+                sunsetStr: data.results.sunset,
+                sunriseHours: parseTime(data.results.sunrise),
+                sunsetHours: parseTime(data.results.sunset)
+            };
+        }
+
+        function generateGradient(sunriseAngle, sunsetAngle) {
+            const delta = 20;  
+            const transitionDeg = delta * 2;
+            const halfTrans = delta;
+            const stops = [];
+            const sunsetStart = (sunsetAngle - halfTrans + 360) % 360;
+            const sunsetEnd = (sunsetAngle + halfTrans + 360) % 360;
+            const sunriseStart = (sunriseAngle - halfTrans + 360) % 360;
+            const sunriseEnd = (sunriseAngle + halfTrans + 360) % 360;
+
+            let dayStart = sunriseEnd;
+            let dayEnd = sunsetStart;
+            let dayDeg = (dayEnd - dayStart + 360) % 360;
+            const numDay = dayColors.length - 1;
+            for (let i = 0; i <= numDay; i++) {
+                const frac = i / numDay;
+                let angle = (dayStart + frac * dayDeg) % 360;
+                stops.push(`${dayColors[i]} ${angle}deg`);
+            }
+
+            const numDusk = duskColors.length - 1;
+            for (let i = 0; i <= numDusk; i++) {
+                const frac = i / numDusk;
+                let angle = (sunsetStart + frac * transitionDeg) % 360;
+                stops.push(`${duskColors[i]} ${angle}deg`);
+            }
+
+            let nightStart = sunsetEnd;
+            let nightEnd = sunriseStart;
+            let nightDeg = (nightEnd - nightStart + 360) % 360;
+            const numNight = nightColors.length - 1;
+            for (let i = 0; i <= numNight; i++) {
+                const frac = i / numNight;
+                let angle = (nightStart + frac * nightDeg) % 360;
+                stops.push(`${nightColors[i]} ${angle}deg`);
+            }
+
+            const numDawn = dawnColors.length - 1;
+            for (let i = 0; i <= numDawn; i++) {
+                const frac = i / numDawn;
+                let angle = (sunriseStart + frac * transitionDeg) % 360;
+                stops.push(`${dawnColors[i]} ${angle}deg`);
+            }
+
+            stops.sort((a, b) => parseFloat(a.split(' ')[1]) - parseFloat(b.split(' ')[1]));
+
+            return `conic-gradient(from 0deg, ${stops.join(', ')})`;
+        }
+
+        function addHourLabels() {
+            const clock = document.getElementById('clock');
+            const labels = [
+                { angle: timeToAngle(12), label: '12' },
+                { angle: timeToAngle(18), label: '18' },
+                { angle: timeToAngle(0), label: '00' },
+                { angle: timeToAngle(6), label: '06' }
+            ];
+            const r = 45;  
+            labels.forEach(l => {
+                const rad = l.angle * Math.PI / 180;
+                const x = 50 + r * Math.sin(rad);
+                const y = 50 - r * Math.cos(rad);
+                const span = document.createElement('span');
+                span.className = 'hour-label';
+                span.style.left = `${x}%`;
+                span.style.top = `${y}%`;
+                span.textContent = l.label;
+                clock.appendChild(span);
+            });
+        }
+
+        function addTicks() {
+            const clock = document.getElementById('clock');
+            for (let i = 0; i < 24; i++) {
+                const major = i % 6 === 0;
+                const lengthPercent = major ? 3 : 2;
+                const angle = timeToAngle(i);
+                const rad = angle * Math.PI / 180;
+                const innerR = 50 - lengthPercent;
+                const innerX = 50 + innerR * Math.sin(rad);
+                const innerY = 50 - innerR * Math.cos(rad);
+                const tick = document.createElement('div');
+                tick.className = 'tick';
+                tick.style.left = `${innerX}%`;
+                tick.style.top = `${innerY}%`;
+                tick.style.width = '1px';
+                tick.style.height = `${lengthPercent}%`;
+                tick.style.transform = `rotate(${angle}deg)`;
+                clock.appendChild(tick);
+            }
+        }
+
+        function updateHands() {
+            const now = new Date().toLocaleString('en-US', { timeZone: currentTZ, hour12: false });
+            const [, time] = now.split(', ');
+            const [h, m, s] = time.split(':').map(Number);
+            const hours = h + m / 60 + s / 3600;
+            const minutes = m + s / 60;
+            const seconds = s;
+            const hourAngle = timeToAngle(hours);
+            const minuteAngle = (minutes / 60) * 360;
+            const secondAngle = (seconds / 60) * 360;
+            document.getElementById('hour-hand').style.transform = `rotate(${hourAngle}deg)`;
+            document.getElementById('minute-hand').style.transform = `rotate(${minuteAngle}deg)`;
+            document.getElementById('second-hand').style.transform = `rotate(${secondAngle}deg)`;
+
+            document.getElementById('current-time').innerText = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+
+            if (h !== lastGreetingHour) {
+                let messages;
+                if (h < 6) {
+                    messages = nightMessages;
+                } else if (h < 12) {
+                    messages = morningMessages;
+                } else if (h < 18) {
+                    messages = afternoonMessages;
+                } else {
+                    messages = eveningMessages;
+                }
+                document.getElementById('greeting').innerText = messages[Math.floor(Math.random() * messages.length)];
+                lastGreetingHour = h;
+            }
+        }
+
+        async function updateClock(location, lat, lng) {
+            const sunInfo = document.getElementById('sun-info');
+            sunInfo.textContent = '';
+            try {
+                currentTZ = await getTimezone(lat, lng);
+                const { sunriseStr, sunsetStr, sunriseHours, sunsetHours } = await getSunTimes(lat, lng);
+                const sunriseAngle = timeToAngle(sunriseHours);
+                const sunsetAngle = timeToAngle(sunsetHours);
+                const gradient = generateGradient(sunriseAngle, sunsetAngle);
+                document.getElementById('clock').style.background = gradient;
+                sunInfo.textContent = `In ${location} the sunrise will be at ${sunriseStr} today and the sunset at ${sunsetStr}.`;
+                updateHands();
+            } catch (err) {
+                sunInfo.textContent = err.message;
+            }
+        }
+
+        async function setDefaultLocation() {
+            let locationName = 'Paris';
+            let lat = 48.8566;
+            let lng = 2.3522;
+
+            document.getElementById('location-info').innerHTML = `LAT : ${parseFloat(lat).toFixed(2)}, LON : ${parseFloat(lng).toFixed(2)}\n<span id="current-time"></span>`;
+            await updateClock(locationName, lat, lng);
+
+            if (navigator.geolocation) {
+                try {
+                    const pos = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject);
+                    });
+                    const url = `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`;
+                    const res = await fetch(url);
+                    const data = await res.json();
+                    locationName = data.address.city || data.address.town || data.address.country || 'Paris';
+                    lat = pos.coords.latitude;
+                    lng = pos.coords.longitude;
+                    document.getElementById('location-info').innerHTML = `LAT : ${parseFloat(lat).toFixed(2)}, LON : ${parseFloat(lng).toFixed(2)}\n<span id="current-time"></span>`;
+                    await updateClock(locationName, lat, lng);
+                } catch {
+                }
+            }
+        }
+
+        window.onload = () => {
+            const clock = document.getElementById('clock');
+            clock.innerHTML = `
+                <div id="hour-hand" class="hand hour"></div>
+                <div id="minute-hand" class="hand minute"></div>
+                <div id="second-hand" class="hand second"></div>
+            `;
+            addHourLabels();
+            addTicks();
+            timer = setInterval(updateHands, 1000);
+            setDefaultLocation();
+        };
+    </script>
+</body>
+
+</html>
